@@ -1,0 +1,46 @@
+#!/bin/bash
+#This script will autofill container names to virtual network interface used in NetworkStats plugin
+#Need to select and save interfaces to show in plugin before running well
+
+/etc/rc.d/rc.vnstat stop
+
+for container in $(docker ps --format '{{.ID}}'); do
+  veth=""
+  networkmode=$(docker inspect -f "{{.HostConfig.NetworkMode}}" $container)
+  name=$(docker ps --filter "id=$container" --format "{{.Names}}")
+  if [ "$networkmode" == "host" ]; then
+    veth="host"
+  elif [ "$networkmode" == "br0" ]; then
+    veth="br0"
+  else
+    pid=$(docker inspect --format '{{.State.Pid}}' "$container")
+    ifindex=$(nsenter -t $pid -n ip link | sed -n -e 's/.*eth0@if\([0-9]*\):.*/\1/p')
+    if [ -z "$ifindex" ]; then
+      veth="not found"
+    else
+      veth=$(ip -o link | grep ^$ifindex | sed -n -e 's/.*\(veth[[:alnum:]]*\).*/\1/p')
+    fi
+  fi
+  if [[ "$veth" = "veth"* ]]; then
+    old=`grep -o -P '(?<=alias-).*(?=="'$name'")' /boot/config/plugins/networkstats/networkstats.cfg`
+    if [ -z "$old" ]; then
+      old="nothing"
+    fi
+    if [[ "$veth" != "$old" ]]; then
+      echo $name \(id $container\) changed $veth interface from $old
+      sed -i "/$name/d" /boot/config/plugins/networkstats/networkstats.cfg
+      sed -i "/alias-$veth/d" /boot/config/plugins/networkstats/networkstats.cfg
+      echo "alias-"$veth"="\"$name\" >> /boot/config/plugins/networkstats/networkstats.cfg
+      if [[ "$old" = "veth"* ]]; then
+        vnstat -i $veth --remove --force
+        vnstat -i $old --rename $veth --force
+      fi
+      vnstat -i $veth --setalias $name
+      sed -i "s/$old/$veth/g" /boot/config/plugins/networkstats/networkstats.cfg
+    else
+      echo $name \(id $container\) is still using $veth interface
+    fi
+  fi
+done
+
+/etc/rc.d/rc.vnstat start
