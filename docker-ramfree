@@ -1,0 +1,15 @@
+#!/bin/bash
+#This script will stop some non essentials containers if RAM free get under 10%, and will restart them when RAM is a least 20%
+
+RAM=$(free | awk '/Mem/{printf("RAM Usage: %.0f\n"), $7/$2*100}'| awk '{print $3}')
+CONT=container1 container2
+
+if [ $RAM -lt 10 ] && [ ! -f /boot/config/plugins/user.scripts/scripts/CheckSwitch/lowram ]; then
+  touch /boot/config/plugins/user.scripts/scripts/lowram
+  docker stop $CONT > /dev/null
+  echo "Low free RAM, stopping some dockers"
+elif [ $RAM -gt 20 ] && [ -f /boot/config/plugins/user.scripts/scripts/CheckSwitch/lowram ]; then
+  rm -f /boot/config/plugins/user.scripts/scripts/lowram
+  docker start $CONT > /dev/null
+  echo "Enough RAM to restart stopped dockers"
+fi
