@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# Telegram Bot Token and ChatId
+BOT_TOKEN="1234567:abcdefgh"
+CHAT_ID="987654"
+
+# Infomaniak credential
+user=login
+password=pass
+
+# Get the current external IP address
+ip=$(dig +short myip.opendns.com @resolver1.opendns.com)
+
+if [[ "$ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+  echo "Current IP is $ip"
+else
+  echo "IP is not valid ($ip)"
+  exit
+fi
+
+# dnsrecords is the A record which will be updated 
+dnsrecords=(dns1.domain.fr dns4.domain.fr dns5.domain.fr)
+
+# loop dnsrecords
+for dnsrecord in ${dnsrecords[@]}
+do
+
+  # check is host need to update
+  if host $dnsrecord 1.1.1.1 | grep "has address" | grep "$ip"; then
+    echo "$dnsrecord is currently set to $ip; no changes needed"
+    continue
+  fi
+
+  # if here, the dns record needs updating
+
+  # update the record
+  curl --ipv4 -sS --data "hostname=${dnsrecord}&${ip}" https://${user}:${password}@infomaniak.com/nic/update
+
+done
+
+MESSAGE="IP updated to ${ip}%0A"
+curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${MESSAGE}&parse_mode=HTML" -w "\n\n"  > /dev/null
