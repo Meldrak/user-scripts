@@ -1,0 +1,19 @@
+#!/bin/bash
+
+BOT_TOKEN="000:AAA"
+CHAT_ID="-111"
+
+fping --retry=7 192.168.1.254 > /dev/null 2>&1
+CS=$?
+
+if [ $CS -ne 0 ] && [ ! -f /boot/config/plugins/user.scripts/scripts/Checkip/netoff ];then
+ touch /boot/config/plugins/user.scripts/scripts/Checkip/netoff
+ MESSAGE="<strong>Défaillance Réseau!!!</strong>%0AConnexion perdue vers serveur.%0A"
+ echo $MESSAGE
+ curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${MESSAGE}&parse_mode=HTML" -w "\n\n"  > /dev/null 
+elif [ $CS -eq 0 ] && [ -f /boot/config/plugins/user.scripts/scripts/Checkip/netoff ];then
+ rm -f /boot/config/plugins/user.scripts/scripts/Checkip/netoff
+ MESSAGE="<strong>Rétablissement Réseau!!!</strong>%0ALes vérifications sont OK, le serveur est joignable.%0A"
+ echo $MESSAGE
+ curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${MESSAGE}&parse_mode=HTML" -w "\n\n"  > /dev/null 
+fi
